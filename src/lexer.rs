@@ -1,5 +1,5 @@
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     EOF = -1,
     NEWLINE = 0,
@@ -40,13 +40,21 @@ impl Default for TokenType {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Token {
     text: String,
     token_type: TokenType
 }
 
 impl Token {
+    pub fn get_type(&self) -> &TokenType {
+        &self.token_type
+    }
+
+    pub fn get_text(&self) -> &str {
+        &self.text
+    }
+
     pub fn is_keyword(token_text: &str) -> Option<TokenType> {
         let mut retval: Option<TokenType> = None;
         match token_text {
@@ -106,8 +114,6 @@ impl Lexer {
         } else {
             self.current_character = self.source_code.chars().collect::<Vec<char>>()[self.current_position];
         }
-
-        println!("self.current_character set to {}", self.current_character);
     }
 
     fn peek(&self) -> char{

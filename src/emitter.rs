@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
@@ -9,7 +9,7 @@ pub struct Emitter<'a> {
 }
 
 impl<'a> Emitter<'a> {
-    pub fn new(full_path: &'a str) -> Emitter {
+    pub fn new(full_path: &'a str) -> Emitter<'a> {
         Emitter {
             full_path: Box::new(Path::new(full_path)),
             compiled_code: String::new()
@@ -26,12 +26,11 @@ impl<'a> Emitter<'a> {
     }
 
     pub fn write_file(&self) {
-        let mut file = match File::open(&*self.full_path) {
-            Err(why) => {
-                panic!("Couldn't open {}: {}", self.full_path.display(), why);
-            },
-            Ok(file) => file,
-        };
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&*self.full_path)
+            .expect("Couldn't open file");
 
         match file.write_all(self.compiled_code.as_bytes()) {
             Err(why) => {
