@@ -15,6 +15,7 @@ pub struct Parser<'a> {
     jumps: Vec<String>,
     events: Vec<String>,
     emitted_events: Vec<String>,
+    stack: Vec<TokenType>,
     main_flag: bool,
 
     previous_token: Token,
@@ -32,6 +33,7 @@ impl<'a> Parser<'a> {
             jumps: Vec::new(),
             events: Vec::new(),
             emitted_events: Vec::new(),
+            stack: Vec::new(),
             main_flag: false,
             previous_token: Token::default(),
             current_token: Token::default(),
@@ -134,6 +136,12 @@ impl<'a> Parser<'a> {
     }
 
     fn task(&mut self) {
+        // Verify we are at the outter most level
+        if self.stack.len() != 0 {
+            panic!("Tasks may not be inside of other structures");
+        } else {
+            self.stack.push(*self.previous_token.get_type());
+        }
         self.emitter.emit("TASK ");
 
         self.task_type();
@@ -188,6 +196,12 @@ impl<'a> Parser<'a> {
     }
 
     fn routine(&mut self) {
+        // Ensure we are inside of a task
+        if self.stack.last().unwrap_or_else(|| &TokenType::EOF) != &TokenType::TASK {
+            panic!("Routines must be defined inside of a task");
+        } else {
+            self.stack.push(*self.previous_token.get_type());
+        }
         self.match_token(TokenType::IDENTIFIER);
 
         // Determine if this is a Main routine or not
@@ -204,6 +218,13 @@ impl<'a> Parser<'a> {
     }
 
     fn rung(&mut self) {
+        // Ensure we are inside of a routine
+        if self.stack.last().unwrap_or_else(|| &TokenType::EOF) != &TokenType::ROUTINE {
+            panic!("Rungs must be defined inside of a routine");
+        } else {
+            self.stack.push(*self.previous_token.get_type());
+        }
+
         if self.check_token(TokenType::IDENTIFIER) {
             self.next_token();
         }
@@ -256,14 +277,25 @@ impl<'a> Parser<'a> {
     }
 
     fn end_rung(&mut self) {
-
+        if self.stack.pop().unwrap_or_else(|| TokenType::EOF) != TokenType::RUNG {
+            panic!("Missing matching RUNG");
+        }
     }
 
     fn end_routine(&mut self) {
-
+        if self.stack.pop().unwrap_or_else(|| TokenType::EOF) != TokenType::ROUTINE {
+            panic!("Missing matching ENDRUNG");
+        }
     }
 
     fn end_task(&mut self) {
+        if self.stack.len() == 0 {
+            panic!("Too many end statements");
+        }
+
+        if self.stack.pop().unwrap() != TokenType::TASK {
+            panic!("Missing matching ENDROUTINE");
+        }
 
         if !self.main_flag {
             panic!("There must be a single Main routine");
@@ -343,7 +375,7 @@ mod tests {
     fn test_statement_tag_1() {
         let source_code = "TAG myTag = TRUE\nTAG myTag = FALSE".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -351,7 +383,7 @@ mod tests {
     fn test_statement_tag_2() {
         let source_code = "TAG myTag = notAKeyword".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -359,21 +391,21 @@ mod tests {
     fn test_statement_tag_3() {
         let source_code = "TAG myLongTagName = FALSE".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
     fn test_statement_task_1() {
         let source_code = "TASK<PERIOD=1000> myTask".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
     fn test_statement_task_2() {
         let source_code = "TASK<EVENT=myEvent> myTask".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -381,14 +413,16 @@ mod tests {
     fn test_statement_task_3() {
         let source_code = "TASK<CONTINUOUS> myTask".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
     fn test_statement_routine_success() {
         let source_code = "ROUTINE Main".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.stack.push(TokenType::TASK);
+
+        par.program();
     }
 
     #[test]
@@ -396,28 +430,32 @@ mod tests {
     fn test_statement_routine_failure() {
         let source_code = "ROUTINE ".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
     fn test_statement_rung_1() {
         let source_code = "RUNG".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.stack.push(TokenType::ROUTINE);
+        
+        par.program();
     }
 
     #[test]
     fn test_statement_rung_2() {
         let source_code = "RUNG myRung".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.stack.push(TokenType::ROUTINE);
+        
+        par.program();
     }
 
     #[test]
     fn test_statement_instructions() {
         let source_code = "XIC tag\nXIO tag\nOTE tag\nOTL tag\nOTU tag\nJSR routine\nEMIT event\nRET".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        
+
         // Add tag to the symbols to avoid errors
         par.tags.push(TagDescriptor {
             name: "tag".to_string(),
@@ -427,24 +465,27 @@ mod tests {
         // Event  and routine must exist
         par.routines.push("routine".to_string());
         par.events.push("event".to_string());
-        
-        par.program()
+
+        par.program();
     }
 
     #[test]
     fn test_statement_end() {
         let source_code = "ENDRUNG\nENDROUTINE\nENDTASK".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
+        par.stack.push(TokenType::TASK);
+        par.stack.push(TokenType::ROUTINE);
+        par.stack.push(TokenType::RUNG);
         par.main_flag = true;
-        
-        par.program()
+
+        par.program();
     }
 
     #[test]
     fn test_statement_tag_array_1() {
         let source_code = "TAG[10] array = FALSE\nOTE array.0".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -452,7 +493,7 @@ mod tests {
     fn test_statement_tag_array_2() {
         let source_code = "TAG[0] array = FALSE".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -460,7 +501,7 @@ mod tests {
     fn test_statement_tag_array_3() {
         let source_code = "TAG[10] array = FALSE\nOTE array".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -468,7 +509,7 @@ mod tests {
     fn test_statement_tag_array_4() {
         let source_code = "OTE array.2".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 
     #[test]
@@ -476,6 +517,6 @@ mod tests {
     fn test_statement_tag_array_5() {
         let source_code = "TAG[10] array = FALSE\nOTE array.10".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.program()
+        par.program();
     }
 }
