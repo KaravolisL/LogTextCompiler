@@ -11,6 +11,10 @@ pub struct Parser<'a> {
     emitter: Emitter<'a>,
 
     tags: Vec<TagDescriptor>,
+    routines: Vec<String>,
+    jumps: Vec<String>,
+    events: Vec<String>,
+    emitted_events: Vec<String>,
     main_flag: bool,
 
     previous_token: Token,
@@ -24,6 +28,10 @@ impl<'a> Parser<'a> {
             lexer: lexer,
             emitter: emitter,
             tags: Vec::new(),
+            routines: Vec::new(),
+            jumps: Vec::new(),
+            events: Vec::new(),
+            emitted_events: Vec::new(),
             main_flag: false,
             previous_token: Token::default(),
             current_token: Token::default(),
@@ -61,6 +69,20 @@ impl<'a> Parser<'a> {
         // Parse all of the statements
         while !self.check_token(TokenType::EOF) {
             self.statement();
+        }
+
+        // Check that all emitted events correspond to actual events
+        for event in &self.emitted_events {
+            if !self.events.contains(event) {
+                panic!("Emitted event {} does not correspond to a task", event);
+            }
+        }
+
+        // Check that all JSR instructions jump to valid routines
+        for jump in &self.jumps {
+            if !self.routines.contains(jump) {
+                panic!("Routine {} does not exist", jump);
+            }
         }
 
         self.emitter.write_file();
@@ -160,6 +182,9 @@ impl<'a> Parser<'a> {
         self.match_token(TokenType::EQ);
         self.match_token(TokenType::IDENTIFIER);
         self.emitter.emit(self.previous_token.get_text());
+
+        // Add the event to the list
+        self.events.push(self.previous_token.get_text().to_string());
     }
 
     fn routine(&mut self) {
@@ -173,6 +198,9 @@ impl<'a> Parser<'a> {
                 self.main_flag = true;
             }
         }
+
+        // Add routine to the list
+        self.routines.push(self.previous_token.get_text().to_string());
     }
 
     fn rung(&mut self) {
@@ -193,12 +221,17 @@ impl<'a> Parser<'a> {
 
         match instruction_type {
             TokenType::JSR => {
-
+                // Add the routine name to a list to be verified later
+                // during compilation
+                self.jumps.push(target);
             },
             TokenType::EMIT => {
-
+                // Add the event name to a list to be verified later
+                // during compilation
+                self.emitted_events.push(target);
             },
             _ => {
+                // Verify the tag exists
                 let tag_descriptor = self.tags.iter()
                                                            .find(|&item| item.name == target)
                                                            .or_else(|| {
@@ -390,6 +423,10 @@ mod tests {
             name: "tag".to_string(),
             length: 0
         });
+
+        // Event  and routine must exist
+        par.routines.push("routine".to_string());
+        par.events.push("event".to_string());
         
         par.program()
     }
