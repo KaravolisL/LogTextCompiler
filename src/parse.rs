@@ -11,6 +11,7 @@ pub struct Parser<'a> {
     emitter: Emitter<'a>,
 
     tags: Vec<TagDescriptor>,
+    main_flag: bool,
 
     previous_token: Token,
     current_token: Token,
@@ -23,6 +24,7 @@ impl<'a> Parser<'a> {
             lexer: lexer,
             emitter: emitter,
             tags: Vec::new(),
+            main_flag: false,
             previous_token: Token::default(),
             current_token: Token::default(),
             peek_token: Token::default()
@@ -162,6 +164,15 @@ impl<'a> Parser<'a> {
 
     fn routine(&mut self) {
         self.match_token(TokenType::IDENTIFIER);
+
+        // Determine if this is a Main routine or not
+        if self.previous_token.get_text() == "Main" {
+            if self.main_flag {
+                panic!("There can only be one Main routine");
+            } else {
+                self.main_flag = true;
+            }
+        }
     }
 
     fn rung(&mut self) {
@@ -220,6 +231,13 @@ impl<'a> Parser<'a> {
     }
 
     fn end_task(&mut self) {
+
+        if !self.main_flag {
+            panic!("There must be a single Main routine");
+        } else {
+            self.main_flag = false;
+        }
+
         self.emitter.emit_line("}");
     }
 
@@ -380,6 +398,8 @@ mod tests {
     fn test_statement_end() {
         let source_code = "ENDRUNG\nENDROUTINE\nENDTASK".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
+        par.main_flag = true;
+        
         par.program()
     }
 
