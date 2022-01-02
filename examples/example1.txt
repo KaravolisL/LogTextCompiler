@@ -1,0 +1,32 @@
+TAG MyTag = FALSE
+TAG output2 = FALSE
+TAG[10] array = FALSE
+
+TASK<PERIOD=2000> MainTask
+    ROUTINE Main
+        RUNG
+            XIO MyTag
+            XIO output2
+            OTE output2
+        ENDRUNG
+        RUNG
+            XIC output2
+            OTE MyTag
+            JSR otherRoutine
+        ENDRUNG
+    ENDROUTINE
+    ROUTINE otherRoutine
+        RUNG
+            XIC array.1
+            EMIT myEvent
+        ENDRUNG
+    ENDROUTINE
+ENDTASK
+
+TASK<EVENT=myEvent> OtherTask
+    ROUTINE Main
+        RUNG
+            OTE array.8
+        ENDRUNG
+    ENDROUTINE
+ENDTASK

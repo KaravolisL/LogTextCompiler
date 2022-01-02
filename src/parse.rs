@@ -1,4 +1,4 @@
-use crate::{lexer::{Lexer, Token, TokenType}, emitter::Emitter};
+use crate::{lexer::{Lexer, Token, TokenType}, emitter::Emitter, code_generation::CodeGenerator};
 
 #[derive(Clone)]
 struct TagDescriptor {
@@ -9,6 +9,7 @@ struct TagDescriptor {
 pub struct Parser<'a> {
     lexer: Lexer,
     emitter: Emitter<'a>,
+    code_generator: CodeGenerator,
 
     tags: Vec<TagDescriptor>,
     routines: Vec<String>,
@@ -26,8 +27,9 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     pub fn new(lexer: Lexer, emitter: Emitter<'a>) -> Parser<'a> {
         let mut parser = Parser {
-            lexer: lexer,
-            emitter: emitter,
+            lexer,
+            emitter,
+            code_generator: CodeGenerator::new(),
             tags: Vec::new(),
             routines: Vec::new(),
             jumps: Vec::new(),
@@ -50,10 +52,6 @@ impl<'a> Parser<'a> {
         token_type == *(self.current_token.get_type())
     }
 
-    fn check_peek(&self, token_type: TokenType) -> bool {
-        token_type == *(self.peek_token.get_type())
-    }
-
     fn match_token(&mut self, token_type: TokenType) {
         if !self.check_token(token_type) {
             panic!("Expected {:?}, but found {:?}", token_type, self.current_token);
@@ -69,7 +67,7 @@ impl<'a> Parser<'a> {
 
     pub fn program(&mut self) {
         // Parse all of the statements
-        while !self.check_token(TokenType::EOF) {
+        while !self.check_token(TokenType::Eof) {
             self.statement();
         }
 
@@ -92,37 +90,37 @@ impl<'a> Parser<'a> {
 
     fn statement(&mut self) {
         match self.current_token.get_type() {
-            &TokenType::TASK => {
+            &TokenType::Task => {
                 self.next_token();
                 self.task();
             },
-            &TokenType::ROUTINE => {
+            &TokenType::Routine => {
                 self.next_token();
                 self.routine();
             },
-            &TokenType::RUNG => {
+            &TokenType::Rung => {
                 self.next_token();
                 self.rung();
             },
-            &TokenType::XIC | &TokenType::XIO | &TokenType::OTE |
-            &TokenType::OTL | &TokenType::OTU | &TokenType::JSR |
-            &TokenType::RET | &TokenType::EMIT => {
+            &TokenType::Xic | &TokenType::Xio | &TokenType::Ote |
+            &TokenType::Otl | &TokenType::Otu | &TokenType::Jsr |
+            &TokenType::Ret | &TokenType::Emit => {
                 self.next_token();
                 self.instruction();
             },
-            &TokenType::ENDRUNG => {
+            &TokenType::EndRung => {
                 self.next_token();
                 self.end_rung();
             },
-            &TokenType::ENDROUTINE => {
+            &TokenType::EndRoutine => {
                 self.next_token();
                 self.end_routine();
             },
-            &TokenType::ENDTASK => {
+            &TokenType::EndTask => {
                 self.next_token();
                 self.end_task();
             },
-            &TokenType::TAG => {
+            &TokenType::Tag => {
                 self.next_token();
                 self.tag();
             },
@@ -137,7 +135,7 @@ impl<'a> Parser<'a> {
 
     fn task(&mut self) {
         // Verify we are at the outter most level
-        if self.stack.len() != 0 {
+        if !self.stack.is_empty() {
             panic!("Tasks may not be inside of other structures");
         } else {
             self.stack.push(*self.previous_token.get_type());
@@ -145,7 +143,7 @@ impl<'a> Parser<'a> {
         self.emitter.emit("TASK ");
 
         self.task_type();
-        self.match_token(TokenType::IDENTIFIER);
+        self.match_token(TokenType::Identifier);
         self.emitter.emit(" ");
         self.emitter.emit_line(self.previous_token.get_text());
         self.emitter.emit_line("{");
@@ -153,27 +151,29 @@ impl<'a> Parser<'a> {
 
     fn task_type(&mut self) {
         // Require an open bracket
-        self.match_token(TokenType::OPEN_ANGLE);
+        self.match_token(TokenType::OpenAngle);
 
         // Determine whether it's periodic or event driven
-        if self.check_token(TokenType::PERIOD) {
+        if self.check_token(TokenType::Period) {
             self.period_type();
-        } else if self.check_token(TokenType::EVENT) {
+        } else if self.check_token(TokenType::Event) {
             self.event_type();
+        } else if self.check_token(TokenType::Continuous) {
+            self.match_token(TokenType::Continuous);
         } else {
             panic!("Invalid task type {}", self.current_token.get_text());
         }
 
         // Require a closing bracket
-        self.match_token(TokenType::CLOSE_ANGLE);
+        self.match_token(TokenType::CloseAngle);
     }
 
     fn period_type(&mut self) {
         // Require the following tokens
-        self.match_token(TokenType::PERIOD);
+        self.match_token(TokenType::Period);
         self.emitter.emit("PERIOD ");
-        self.match_token(TokenType::EQ);
-        self.match_token(TokenType::NUMBER);
+        self.match_token(TokenType::Eq);
+        self.match_token(TokenType::Number);
         self.emitter.emit(self.previous_token.get_text());
 
         // Enforce a lower bound on the period
@@ -185,10 +185,10 @@ impl<'a> Parser<'a> {
 
     fn event_type(&mut self) {
         // Require the following tokens
-        self.match_token(TokenType::EVENT);
+        self.match_token(TokenType::Event);
         self.emitter.emit("EVENT ");
-        self.match_token(TokenType::EQ);
-        self.match_token(TokenType::IDENTIFIER);
+        self.match_token(TokenType::Eq);
+        self.match_token(TokenType::Identifier);
         self.emitter.emit(self.previous_token.get_text());
 
         // Add the event to the list
@@ -197,12 +197,13 @@ impl<'a> Parser<'a> {
 
     fn routine(&mut self) {
         // Ensure we are inside of a task
-        if self.stack.last().unwrap_or_else(|| &TokenType::EOF) != &TokenType::TASK {
+        if self.stack.last().unwrap_or(&TokenType::Eof) != &TokenType::Task {
             panic!("Routines must be defined inside of a task");
         } else {
             self.stack.push(*self.previous_token.get_type());
         }
-        self.match_token(TokenType::IDENTIFIER);
+        self.match_token(TokenType::Identifier);
+        self.code_generator.start_routine(self.previous_token.get_text());
 
         // Determine if this is a Main routine or not
         if self.previous_token.get_text() == "Main" {
@@ -219,37 +220,41 @@ impl<'a> Parser<'a> {
 
     fn rung(&mut self) {
         // Ensure we are inside of a routine
-        if self.stack.last().unwrap_or_else(|| &TokenType::EOF) != &TokenType::ROUTINE {
+        if self.stack.last().unwrap_or(&TokenType::Eof) != &TokenType::Routine {
             panic!("Rungs must be defined inside of a routine");
         } else {
             self.stack.push(*self.previous_token.get_type());
         }
 
-        if self.check_token(TokenType::IDENTIFIER) {
+        if self.check_token(TokenType::Identifier) {
             self.next_token();
+            self.code_generator.start_rung(self.previous_token.get_text());
+        } else {
+            self.code_generator.start_rung("");
         }
     }
 
     fn instruction(&mut self) {
         let instruction_type = self.previous_token.get_type().to_owned();
 
-        if instruction_type == TokenType::RET {
+        if instruction_type == TokenType::Ret {
+            self.code_generator.add_instruction(instruction_type, "");
             return;
         }
 
-        self.match_token(TokenType::IDENTIFIER);
+        self.match_token(TokenType::Identifier);
         let mut target = self.previous_token.get_text().to_string();
 
         match instruction_type {
-            TokenType::JSR => {
+            TokenType::Jsr => {
                 // Add the routine name to a list to be verified later
                 // during compilation
-                self.jumps.push(target);
+                self.jumps.push(target.clone());
             },
-            TokenType::EMIT => {
+            TokenType::Emit => {
                 // Add the event name to a list to be verified later
                 // during compilation
-                self.emitted_events.push(target);
+                self.emitted_events.push(target.clone());
             },
             _ => {
                 // Verify the tag exists
@@ -261,10 +266,10 @@ impl<'a> Parser<'a> {
 
                 // We are referencing a tag array, so require an index
                 if tag_descriptor.length != 0 {
-                    self.match_token(TokenType::INDEXER);
+                    self.match_token(TokenType::Indexer);
                     target += self.previous_token.get_text();
 
-                    self.match_token(TokenType::NUMBER);
+                    self.match_token(TokenType::Number);
                     target += self.previous_token.get_text();
 
                     if self.previous_token.get_text().parse::<usize>().unwrap() >= tag_descriptor.length {
@@ -274,26 +279,30 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+
+        self.code_generator.add_instruction(instruction_type, &target);
     }
 
     fn end_rung(&mut self) {
-        if self.stack.pop().unwrap_or_else(|| TokenType::EOF) != TokenType::RUNG {
+        if self.stack.pop().unwrap_or(TokenType::Eof) != TokenType::Rung {
             panic!("Missing matching RUNG");
         }
+        self.code_generator.end_rung();
     }
 
     fn end_routine(&mut self) {
-        if self.stack.pop().unwrap_or_else(|| TokenType::EOF) != TokenType::ROUTINE {
+        if self.stack.pop().unwrap_or(TokenType::Eof) != TokenType::Routine {
             panic!("Missing matching ENDRUNG");
         }
+        self.code_generator.end_routine();
     }
 
     fn end_task(&mut self) {
-        if self.stack.len() == 0 {
+        if self.stack.is_empty() {
             panic!("Too many end statements");
         }
 
-        if self.stack.pop().unwrap() != TokenType::TASK {
+        if self.stack.pop().unwrap() != TokenType::Task {
             panic!("Missing matching ENDROUTINE");
         }
 
@@ -303,19 +312,20 @@ impl<'a> Parser<'a> {
             self.main_flag = false;
         }
 
+        self.emitter.emit_line(&self.code_generator.finish_code_block());
         self.emitter.emit_line("}");
     }
 
     fn tag(&mut self) {
         // Determine if this is a tag array or a single tag
         let mut length: usize = 0;
-        if self.check_token(TokenType::OPEN_BRACKET) {
+        if self.check_token(TokenType::OpenBracket) {
             length = self.tag_array();
         } else {
             self.emitter.emit("TAG ");
         }
 
-        self.match_token(TokenType::IDENTIFIER);
+        self.match_token(TokenType::Identifier);
         self.emitter.emit(self.previous_token.get_text());
 
         // Enforce a charater limit on tag names
@@ -327,23 +337,23 @@ impl<'a> Parser<'a> {
 
         self.tags.push(TagDescriptor {
             name: self.previous_token.get_text().to_string(),
-            length: length
+            length
         });
-        self.match_token(TokenType::EQ);
+        self.match_token(TokenType::Eq);
 
         // Either true or false are acceptable
-        if self.check_token(TokenType::TRUE) {
-            self.match_token(TokenType::TRUE);
+        if self.check_token(TokenType::True) {
+            self.match_token(TokenType::True);
             self.emitter.emit_line(" TRUE");
         } else {
-            self.match_token(TokenType::FALSE);
+            self.match_token(TokenType::False);
             self.emitter.emit_line(" FALSE");
         }
     }
 
     fn tag_array(&mut self) -> usize{
-        self.match_token(TokenType::OPEN_BRACKET);
-        self.match_token(TokenType::NUMBER);
+        self.match_token(TokenType::OpenBracket);
+        self.match_token(TokenType::Number);
 
         let length: usize = self.previous_token.get_text().parse().unwrap();
         if length == 0 {
@@ -354,13 +364,13 @@ impl<'a> Parser<'a> {
         self.emitter.emit(self.previous_token.get_text());
         self.emitter.emit(" ");
 
-        self.match_token(TokenType::CLOSE_BRACKET);
+        self.match_token(TokenType::CloseBracket);
         length
     }
 
     fn new_line(&mut self) {
-        self.match_token(TokenType::NEWLINE);
-        while self.check_token(TokenType::NEWLINE) {
+        self.match_token(TokenType::NewLine);
+        while self.check_token(TokenType::NewLine) {
             self.next_token();
         }
     }
@@ -411,7 +421,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_statement_task_3() {
-        let source_code = "TASK<CONTINUOUS> myTask".to_string();
+        let source_code = "TASK<INVALID> myTask".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
         par.program();
     }
@@ -420,7 +430,7 @@ mod tests {
     fn test_statement_routine_success() {
         let source_code = "ROUTINE Main".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.stack.push(TokenType::TASK);
+        par.stack.push(TokenType::Task);
 
         par.program();
     }
@@ -437,7 +447,7 @@ mod tests {
     fn test_statement_rung_1() {
         let source_code = "RUNG".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.stack.push(TokenType::ROUTINE);
+        par.stack.push(TokenType::Routine);
         
         par.program();
     }
@@ -446,7 +456,7 @@ mod tests {
     fn test_statement_rung_2() {
         let source_code = "RUNG myRung".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.stack.push(TokenType::ROUTINE);
+        par.stack.push(TokenType::Routine);
         
         par.program();
     }
@@ -471,12 +481,8 @@ mod tests {
 
     #[test]
     fn test_statement_end() {
-        let source_code = "ENDRUNG\nENDROUTINE\nENDTASK".to_string();
+        let source_code = "TASK<CONTINUOUS> task\nROUTINE Main\nRUNG\nENDRUNG\nENDROUTINE\nENDTASK".to_string();
         let mut par = Parser::new(Lexer::new(source_code.clone()), Emitter::new("test.out"));
-        par.stack.push(TokenType::TASK);
-        par.stack.push(TokenType::ROUTINE);
-        par.stack.push(TokenType::RUNG);
-        par.main_flag = true;
 
         par.program();
     }

@@ -1,6 +1,8 @@
 
-const INPUT_INSTRUCTIONS: [&str; 2] = ["XIC", "XIO"];
-const OUTPUT_INSTRUCTIONS: [&str; 6] = ["OTE", "OTL", "OTU", "JSR", "RET", "EMIT"];
+use crate::lexer::TokenType;
+
+const INPUT_INSTRUCTIONS: [TokenType; 2] = [TokenType::Xic, TokenType::Xio];
+const OUTPUT_INSTRUCTIONS: [TokenType; 6] = [TokenType::Ote, TokenType::Otl, TokenType::Otu, TokenType::Jsr, TokenType::Ret, TokenType::Emit];
 
 #[derive(Default)]
 pub struct CodeGenerator {
@@ -26,7 +28,7 @@ impl CodeGenerator {
         self.current_code_block += "\n";
     }
 
-    fn finish_code_block(&mut self) -> String {
+    pub fn finish_code_block(&mut self) -> String {
         // Add entry point of task
         self.add_to_code_block("Main()");
 
@@ -37,12 +39,12 @@ impl CodeGenerator {
         code_block
     }
 
-    fn start_routine(&mut self, routine_name: &str) {
+    pub fn start_routine(&mut self, routine_name: &str) {
         self.add_to_code_block(format!("def {}():", routine_name).as_str());
         self.indentation_level += 1;
     }
 
-    fn end_routine(&mut self) {
+    pub fn end_routine(&mut self) {
         // If we don't have any rungs, we need to add a pass
         if self.rung_number == 0 {
             self.add_to_code_block("pass");
@@ -51,8 +53,8 @@ impl CodeGenerator {
         self.rung_number = 0;
     }
 
-    fn start_rung(&mut self, rung_name: &str) {
-        let mut editted_rung_name = String::default();
+    pub fn start_rung(&mut self, rung_name: &str) {
+        let editted_rung_name;
         if rung_name.is_empty() {
             editted_rung_name = format!("rung_{}_entry", self.rung_number);
         } else {
@@ -64,7 +66,7 @@ impl CodeGenerator {
         self.current_rung_name = editted_rung_name;
     }
 
-    fn end_rung(&mut self) {
+    pub fn end_rung(&mut self) {
         // Actually add the output instructions now if there were any
         if !self.if_block_instructions.is_empty() {
             self.add_to_code_block(format!("if {}:", self.current_rung_name).as_str());
@@ -84,47 +86,47 @@ impl CodeGenerator {
             while let Some(instruction) = self.else_block_instructions.pop() {
                 self.add_to_code_block(&instruction);
             }
-
+            
             self.indentation_level -= 1;
         }
 
         self.output_instruction_flag = false;
     }
 
-    fn add_input_instruction(&mut self, instruction: &str, target: &str) {
+    fn add_input_instruction(&mut self, instruction: &TokenType, target: &str) {
         if self.output_instruction_flag {
-            panic!("Input instruction {} appears after an output instruction", instruction);
+            panic!("Input instruction {:?} appears after an output instruction", instruction);
         }
 
-        if instruction == "XIC" {
+        if instruction == &TokenType::Xic {
             self.add_to_code_block(format!("{} &= {}", self.current_rung_name, target).as_str());
-        } else if instruction == "XIO" {
+        } else if instruction == &TokenType::Xio {
             self.add_to_code_block(format!("{} &= not {}", self.current_rung_name, target).as_str());
         } else {
             unreachable!("Missing input instruction");
         }
     }
 
-    fn add_output_instruction(&mut self, instruction: &str, target: &str) {
+    fn add_output_instruction(&mut self, instruction: &TokenType, target: &str) {
 
-        match instruction {
-            "RET" => {
+        match *instruction {
+            TokenType::Ret => {
                 self.if_block_instructions.insert(0, "return".to_string());
             },
-            "JSR" => {
+            TokenType::Jsr => {
                 self.if_block_instructions.insert(0, format!("{}()", target));
             },
-            "OTL" => {
+            TokenType::Otl => {
                 self.if_block_instructions.insert(0, format!("{} = True", target));
             },
-            "OTU" => {
+            TokenType::Otu => {
                 self.if_block_instructions.insert(0, format!("{} = False", target));
             },
-            "OTE" => {
+            TokenType::Ote => {
                 self.if_block_instructions.insert(0, format!("{} = True", target));
                 self.else_block_instructions.insert(0, format!("{} = False", target));
             },
-            "EMIT" => {
+            TokenType::Emit => {
                 self.if_block_instructions.insert(0, format!("EmitEvent('{}')", target));
             },
             _ => {
@@ -134,13 +136,13 @@ impl CodeGenerator {
         self.output_instruction_flag = true;
     }
 
-    fn add_instruction(&mut self, instruction: &str, target: &str) {
+    pub fn add_instruction(&mut self, instruction: TokenType, target: &str) {
         if INPUT_INSTRUCTIONS.contains(&instruction) {
-            self.add_input_instruction(instruction, target);
+            self.add_input_instruction(&instruction, target);
         } else if OUTPUT_INSTRUCTIONS.contains(&instruction) {
-            self.add_output_instruction(instruction, target);
+            self.add_output_instruction(&instruction, target);
         } else {
-            panic!("Invalid instruction {}", instruction);
+            panic!("Invalid instruction {:?}", instruction);
         }
     }
 }
@@ -155,18 +157,18 @@ mod test {
 
         code_generator.start_routine("Main");
         code_generator.start_rung("firstRung");
-        code_generator.add_instruction("XIO", "MyTag1");
-        code_generator.add_instruction("XIC", "MyTag2");
-        code_generator.add_instruction("OTL", "MyTag3");
-        code_generator.add_instruction("OTU", "MyTag4");
-        code_generator.add_instruction("OTE", "MyTag5");
-        code_generator.add_instruction("JSR", "otherRoutine");
+        code_generator.add_instruction(TokenType::Xio, "MyTag1");
+        code_generator.add_instruction(TokenType::Xic, "MyTag2");
+        code_generator.add_instruction(TokenType::Otl, "MyTag3");
+        code_generator.add_instruction(TokenType::Otu, "MyTag4");
+        code_generator.add_instruction(TokenType::Ote, "MyTag5");
+        code_generator.add_instruction(TokenType::Jsr, "otherRoutine");
         code_generator.end_rung();
         code_generator.end_routine();
 
         code_generator.start_routine("otherRoutine");
         code_generator.start_rung("");
-        code_generator.add_instruction("RET", "");
+        code_generator.add_instruction(TokenType::Ret, "");
         code_generator.end_rung();
         code_generator.end_routine();
 
@@ -197,9 +199,9 @@ Main()";
 
         code_generator.start_routine("Main");
         code_generator.start_rung("firstRung");
-        code_generator.add_input_instruction("XIC", "MyTag");
-        code_generator.add_output_instruction("OTE", "MyTag");
-        code_generator.add_input_instruction("XIC", "MyTag");
+        code_generator.add_input_instruction(&TokenType::Xic, "MyTag");
+        code_generator.add_output_instruction(&TokenType::Ote, "MyTag");
+        code_generator.add_input_instruction(&TokenType::Xic, "MyTag");
     }
 
     #[test]

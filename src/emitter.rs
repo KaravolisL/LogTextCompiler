@@ -4,14 +4,14 @@ use std::path::Path;
 
 /// Class responsible for outputting compiled code
 pub struct Emitter<'a> {
-    full_path: Box<&'a std::path::Path>,
+    full_path: &'a std::path::Path,
     compiled_code: String
 }
 
 impl<'a> Emitter<'a> {
     pub fn new(full_path: &'a str) -> Emitter<'a> {
         Emitter {
-            full_path: Box::new(Path::new(full_path)),
+            full_path: Path::new(full_path),
             compiled_code: String::new()
         }
     }
@@ -32,11 +32,8 @@ impl<'a> Emitter<'a> {
             .open(&*self.full_path)
             .expect("Couldn't open file");
 
-        match file.write_all(self.compiled_code.as_bytes()) {
-            Err(why) => {
-                panic!("Couldn't write to {}: {}", self.full_path.display(), why)
-            },
-            Ok(_) => ()
+        if let Err(why) = file.write_all(self.compiled_code.as_bytes()) {
+            panic!("Couldn't write to {}: {}", self.full_path.display(), why);
         }
     }
 }

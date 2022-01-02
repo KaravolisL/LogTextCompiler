@@ -1,42 +1,43 @@
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
-    EOF = -1,
-    NEWLINE = 0,
-    NUMBER = 1,
-    IDENTIFIER = 2,
+    Eof = -1,
+    NewLine = 0,
+    Number = 1,
+    Identifier = 2,
 
-    TAG = 101,
-    TASK = 102,
-    ENDTASK = 103,
-    PERIOD = 104,
-    EVENT = 105,
-    ROUTINE = 106,
-    ENDROUTINE = 107,
-    RUNG = 108,
-    ENDRUNG = 109,
-    FALSE = 110,
-    TRUE = 111,
-    XIC = 112,
-    XIO = 113,
-    OTE = 114,
-    OTL = 115,
-    OTU = 116,
-    JSR = 117,
-    RET = 118,
-    EMIT = 119,
+    Tag = 101,
+    Task = 102,
+    EndTask = 103,
+    Period = 104,
+    Event = 105,
+    Continuous = 106,
+    Routine = 107,
+    EndRoutine = 108,
+    Rung = 109,
+    EndRung = 110,
+    False = 111,
+    True = 112,
+    Xic = 113,
+    Xio = 114,
+    Ote = 115,
+    Otl = 116,
+    Otu = 117,
+    Jsr = 118,
+    Ret = 119,
+    Emit = 120,
 
-    EQ = 201,
-    OPEN_ANGLE = 202,
-    CLOSE_ANGLE = 203,
-    OPEN_BRACKET = 204,
-    CLOSE_BRACKET = 205,
-    INDEXER = 206
+    Eq = 201,
+    OpenAngle = 202,
+    CloseAngle = 203,
+    OpenBracket = 204,
+    CloseBracket = 205,
+    Indexer = 206
 }
 
 impl Default for TokenType {
     fn default() -> Self {
-        TokenType::EOF    
+        TokenType::Eof    
     }
 }
 
@@ -58,25 +59,26 @@ impl Token {
     pub fn is_keyword(token_text: &str) -> Option<TokenType> {
         let mut retval: Option<TokenType> = None;
         match token_text {
-            "TAG" => retval = Some(TokenType::TAG),
-            "TASK" => retval = Some(TokenType::TASK),
-            "ENDTASK" => retval = Some(TokenType::ENDTASK),
-            "PERIOD" => retval = Some(TokenType::PERIOD),
-            "EVENT" => retval = Some(TokenType::EVENT),
-            "ROUTINE" => retval = Some(TokenType::ROUTINE),
-            "ENDROUTINE" => retval = Some(TokenType::ENDROUTINE),
-            "RUNG" => retval = Some(TokenType::RUNG),
-            "ENDRUNG" => retval = Some(TokenType::ENDRUNG),
-            "FALSE" => retval = Some(TokenType::FALSE),
-            "TRUE" => retval = Some(TokenType::TRUE),
-            "XIC" => retval = Some(TokenType::XIC),
-            "XIO" => retval = Some(TokenType::XIO),
-            "OTE" => retval = Some(TokenType::OTE),
-            "OTL" => retval = Some(TokenType::OTL),
-            "OTU" => retval = Some(TokenType::OTU),
-            "JSR" => retval = Some(TokenType::JSR),
-            "RET" => retval = Some(TokenType::RET),
-            "EMIT" => retval = Some(TokenType::EMIT),
+            "TAG" => retval = Some(TokenType::Tag),
+            "TASK" => retval = Some(TokenType::Task),
+            "ENDTASK" => retval = Some(TokenType::EndTask),
+            "PERIOD" => retval = Some(TokenType::Period),
+            "EVENT" => retval = Some(TokenType::Event),
+            "CONTINUOUS" => retval = Some(TokenType::Continuous),
+            "ROUTINE" => retval = Some(TokenType::Routine),
+            "ENDROUTINE" => retval = Some(TokenType::EndRoutine),
+            "RUNG" => retval = Some(TokenType::Rung),
+            "ENDRUNG" => retval = Some(TokenType::EndRung),
+            "FALSE" => retval = Some(TokenType::False),
+            "TRUE" => retval = Some(TokenType::True),
+            "XIC" => retval = Some(TokenType::Xic),
+            "XIO" => retval = Some(TokenType::Xio),
+            "OTE" => retval = Some(TokenType::Ote),
+            "OTL" => retval = Some(TokenType::Otl),
+            "OTU" => retval = Some(TokenType::Otu),
+            "JSR" => retval = Some(TokenType::Jsr),
+            "RET" => retval = Some(TokenType::Ret),
+            "EMIT" => retval = Some(TokenType::Emit),
             _ => ()
         }
         retval
@@ -94,7 +96,7 @@ impl Lexer {
     pub fn new(mut source_code: String) -> Lexer {
         source_code.push('\n');
         let mut lexer = Lexer {
-            source_code: source_code,
+            source_code,
             line_number: 1,
             current_character: '\0',
             current_position: 0
@@ -147,35 +149,35 @@ impl Lexer {
         match self.current_character {
             '=' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::EQ;
+                token.token_type = TokenType::Eq;
             },
             '<' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::OPEN_ANGLE;
+                token.token_type = TokenType::OpenAngle;
             },
             '>' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::CLOSE_ANGLE;
+                token.token_type = TokenType::CloseAngle;
             },
             '[' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::OPEN_BRACKET;
+                token.token_type = TokenType::OpenBracket;
             },
             ']' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::CLOSE_BRACKET;
+                token.token_type = TokenType::CloseBracket;
             },
             '\n' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::NEWLINE;
+                token.token_type = TokenType::NewLine;
             },
             '\0' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::EOF;
+                token.token_type = TokenType::Eof;
             },
             '.' => {
                 token.text = self.current_character.to_string();
-                token.token_type = TokenType::INDEXER;
+                token.token_type = TokenType::Indexer;
             }
             _ => {
                 if self.current_character.is_digit(10) {
@@ -203,7 +205,7 @@ impl Lexer {
                     // Construct the substring and token
                     let number = &self.source_code[start_position..self.current_position + 1];
                     token.text = number.to_string();
-                    token.token_type = TokenType::NUMBER;
+                    token.token_type = TokenType::Number;
                 } else if self.current_character.is_alphabetic() {
                     // Token is either a keyword or identifier
                     let start_position = self.current_position;
@@ -216,7 +218,7 @@ impl Lexer {
                     token.text = word.to_string();
 
                     let keyword = Token::is_keyword(word);
-                    token.token_type = keyword.unwrap_or(TokenType::IDENTIFIER);
+                    token.token_type = keyword.unwrap_or(TokenType::Identifier);
                 } else {
                     panic!("Unknown token: {}", self.current_character);
                 }
@@ -268,39 +270,39 @@ mod tests {
         let mut lexer = Lexer::new(test_input.clone());
 
         let mut token = lexer.get_token();
-        assert_eq!(TokenType::TASK, token.token_type);
+        assert_eq!(TokenType::Task, token.token_type);
         assert_eq!("TASK", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::OPEN_ANGLE, token.token_type);
+        assert_eq!(TokenType::OpenAngle, token.token_type);
         assert_eq!("<", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::PERIOD, token.token_type);
+        assert_eq!(TokenType::Period, token.token_type);
         assert_eq!("PERIOD", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::EQ, token.token_type);
+        assert_eq!(TokenType::Eq, token.token_type);
         assert_eq!("=", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::NUMBER, token.token_type);
+        assert_eq!(TokenType::Number, token.token_type);
         assert_eq!("10.50", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::CLOSE_ANGLE, token.token_type);
+        assert_eq!(TokenType::CloseAngle, token.token_type);
         assert_eq!(">", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::IDENTIFIER, token.token_type);
+        assert_eq!(TokenType::Identifier, token.token_type);
         assert_eq!("myTask", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::NEWLINE, token.token_type);
+        assert_eq!(TokenType::NewLine, token.token_type);
         assert_eq!("\n", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::EOF, token.token_type);
+        assert_eq!(TokenType::Eof, token.token_type);
         assert_eq!("\0", token.text);
     }
 
@@ -310,31 +312,31 @@ mod tests {
         let mut lexer = Lexer::new(test_input.clone());
 
         let mut token = lexer.get_token();
-        assert_eq!(TokenType::TAG, token.token_type);
+        assert_eq!(TokenType::Tag, token.token_type);
         assert_eq!("TAG", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::OPEN_BRACKET, token.token_type);
+        assert_eq!(TokenType::OpenBracket, token.token_type);
         assert_eq!("[", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::NUMBER, token.token_type);
+        assert_eq!(TokenType::Number, token.token_type);
         assert_eq!("10", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::CLOSE_BRACKET, token.token_type);
+        assert_eq!(TokenType::CloseBracket, token.token_type);
         assert_eq!("]", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::IDENTIFIER, token.token_type);
+        assert_eq!(TokenType::Identifier, token.token_type);
         assert_eq!("myTagArray", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::EQ, token.token_type);
+        assert_eq!(TokenType::Eq, token.token_type);
         assert_eq!("=", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::FALSE, token.token_type);
+        assert_eq!(TokenType::False, token.token_type);
         assert_eq!("FALSE", token.text);
     }
 
@@ -344,19 +346,19 @@ mod tests {
         let mut lexer = Lexer::new(test_input.clone());
 
         let mut token = lexer.get_token();
-        assert_eq!(TokenType::OTE, token.token_type);
+        assert_eq!(TokenType::Ote, token.token_type);
         assert_eq!("OTE", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::IDENTIFIER, token.token_type);
+        assert_eq!(TokenType::Identifier, token.token_type);
         assert_eq!("myTagArray", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::INDEXER, token.token_type);
+        assert_eq!(TokenType::Indexer, token.token_type);
         assert_eq!(".", token.text);
 
         token = lexer.get_token();
-        assert_eq!(TokenType::NUMBER, token.token_type);
+        assert_eq!(TokenType::Number, token.token_type);
         assert_eq!("0", token.text);
     }
 
